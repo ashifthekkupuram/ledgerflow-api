@@ -1,0 +1,25 @@
+# Logs and Debug
+logs
+*.log
+npm-debug.log*
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build and Output
+dist/
+build/
+.next/
+.nuxt/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDEs and Tools
+.vscode/
+.idea/
+.DS_Store
