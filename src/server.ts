@@ -7,6 +7,8 @@ import { errorHandler } from "./middlewares/errorHandler.ts";
 import { env } from "../env.ts";
 import { client } from "./db/connection.ts";
 
+import authRoute from "./modules/auth/auth.route.ts";
+
 const app = express();
 
 const pgSession = connectPgSession(session);
@@ -19,19 +21,18 @@ app.use(
   session({
     secret: env.COOKIE_SECRET_KEY,
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
     store: new pgSession({
       tableName: "user_sessions",
       pool: client,
       createTableIfMissing: true,
     }),
     cookie: function (req) {
-      const match = req.url.match(/^\/([^/]+)/);
       return {
         maxAge: 1000 * 60 * 60 * 24 * 7,
         httpOnly: true,
-        secure: req.secure || false,
-        path: match ? "/" + match[1] : "/",
+        secure: false,
+        path: "/",
       };
     },
   }),
@@ -43,6 +44,9 @@ app.get("/health", (req, res) => {
     message: "LedgerFlow API...",
   });
 });
+
+// API Endpoints
+app.use("/api/auth", authRoute);
 
 // Error Handler and Catcher
 app.use(errorHandler);

@@ -21,6 +21,7 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().default(5000),
   DATABASE_CONNECTION_URL: z.string().startsWith("postgresql://"),
   COOKIE_SECRET_KEY: z.string().min(32),
+  PASSWORD_SALT_ROUNDS: z.coerce.number().min(10).max(20).default(12),
 });
 
 type EnvType = z.infer<typeof EnvSchema>;
