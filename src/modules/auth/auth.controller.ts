@@ -1,10 +1,11 @@
 import type { Request, Response } from "express";
+import { promisify } from "util";
+import { DrizzleQueryError, eq } from "drizzle-orm";
+import { DatabaseError } from "pg";
 
 import db from "../../db/connection.ts";
 import { users } from "../../db/schema.ts";
-import { DrizzleQueryError, eq } from "drizzle-orm";
 import { comparePassword, hashPassword } from "../../utils/password.ts";
-import { DatabaseError } from "pg";
 
 export const login = async (req: Request, res: Response) => {
   try {
@@ -26,10 +27,14 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    req.session.regenerate((err) => {
-      if (err) throw new Error("Something went wrong");
-      req.session.userId = user.id;
-    });
+    const regenerate = promisify(req.session.regenerate).bind(req.session);
+    const save = promisify(req.session.save).bind(req.session);
+
+    await regenerate();
+
+    req.session.userId = user.id;
+
+    await save();
 
     return res.json({
       message: "Login Successfull",
@@ -63,10 +68,18 @@ export const register = async (req: Request, res: Response) => {
         createdAt: users.createdAt,
       });
 
-    req.session.regenerate((err) => {
-      if (err) throw new Error("Session creation failed.");
-      req.session.userId = user!.id;
-    });
+    if (!user) {
+      throw new Error("Something went wrong");
+    }
+
+    const regenerate = promisify(req.session.regenerate).bind(req.session);
+    const save = promisify(req.session.save).bind(req.session);
+
+    await regenerate();
+
+    req.session.userId = user.id;
+
+    await save();
 
     return res.json({
       message: "Register Successfull",
