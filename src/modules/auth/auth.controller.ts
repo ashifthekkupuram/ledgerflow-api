@@ -113,13 +113,11 @@ export const register = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
   try {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(400).json({
-          error: "Logout Failed.",
-        });
-      }
-    });
+    const destroy = promisify(req.session.destroy).bind(req.session);
+
+    await destroy();
+
+    res.clearCookie("connect.sid");
 
     return res.json({
       message: "Logout Successful.",
