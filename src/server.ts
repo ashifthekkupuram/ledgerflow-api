@@ -8,6 +8,7 @@ import { env } from "../env.ts";
 import { client } from "./db/connection.ts";
 
 import authRoute from "./modules/auth/auth.route.ts";
+import accountsRoute from "./modules/accounts/accounts.route.ts";
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.get("/health", (req, res) => {
 
 // API Endpoints
 app.use("/api/auth", authRoute);
+app.use("/api/accounts", accountsRoute);
 
 // Error Handler and Catcher
 app.use(errorHandler);
