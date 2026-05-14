@@ -10,6 +10,7 @@ import { client } from "./db/connection.ts";
 import authRoute from "./modules/auth/auth.route.ts";
 import accountsRoute from "./modules/accounts/accounts.route.ts";
 import transactionRoute from "./modules/transactions/transactions.route.ts";
+import tagsRoute from "./modules/tags/tags.route.ts";
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", authRoute);
 app.use("/api/accounts", accountsRoute);
 app.use("/api/transaction", transactionRoute);
+app.use("/api/tags", tagsRoute);
 
 // Error Handler and Catcher
 app.use(errorHandler);

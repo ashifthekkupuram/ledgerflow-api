@@ -269,7 +269,7 @@ export const createTransactionByAccountId = async (
         });
       }
       if (
-        e.cause.code === "23514" &&
+        e.cause.code === "23505" &&
         e.cause.constraint ===
           "unique_transaction_tag_id_and_account_transaction_id"
       ) {
