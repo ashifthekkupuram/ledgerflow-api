@@ -8,6 +8,7 @@ import {
   gte,
   lte,
   sql,
+  isNull,
 } from "drizzle-orm";
 
 import { env } from "../../../env.ts";
@@ -296,6 +297,7 @@ export const getTransactionsByAccountId = async (
 
     const filters = and(
       eq(accountTransactions.accountId, id as string),
+      isNull(accountTransactions.deletedAt),
       type
         ? eq(accountTransactions.type, type as AccountTransactionType)
         : undefined,
