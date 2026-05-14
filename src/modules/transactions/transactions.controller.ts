@@ -6,7 +6,8 @@ import {
   accountTransactions,
   transactionTags,
 } from "../../db/schema.ts";
-import { eq, inArray, sql } from "drizzle-orm";
+import { DrizzleQueryError, eq, inArray, sql } from "drizzle-orm";
+import { DatabaseError } from "pg";
 
 export const getTransaction = async (req: Request, res: Response) => {
   try {
@@ -152,6 +153,26 @@ export const updateTransaction = async (req: Request, res: Response) => {
       transaction: filtered,
     });
   } catch (e) {
+    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
+      if (
+        e.cause.code === "23514" &&
+        e.cause.constraint === "check_account_balance_non_negative"
+      ) {
+        return res.status(400).json({
+          error: "Insufficient balance.",
+        });
+      }
+      if (
+        e.cause.code === "23514" &&
+        e.cause.constraint ===
+          "unique_transaction_tag_id_and_account_transaction_id"
+      ) {
+        return res.status(400).json({
+          error: "Field errors.",
+          details: [{ name: "tags", message: "Cannot add same tag twice." }],
+        });
+      }
+    }
     throw e;
   }
 };
@@ -210,6 +231,17 @@ export const deleteTransaction = async (req: Request, res: Response) => {
       message: "Transaction Deleted.",
     });
   } catch (e) {
+    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
+      if (
+        e.cause.code === "23514" &&
+        e.cause.constraint === "check_account_balance_non_negative"
+      ) {
+        return res.status(400).json({
+          error: "Insufficient balance.",
+        });
+      }
+    }
+
     throw e;
   }
 };
@@ -290,6 +322,16 @@ export const recoverTransaction = async (req: Request, res: Response) => {
       transaction: filtered,
     });
   } catch (e) {
+    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
+      if (
+        e.cause.code === "23514" &&
+        e.cause.constraint === "check_account_balance_non_negative"
+      ) {
+        return res.status(400).json({
+          error: "Insufficient balance.",
+        });
+      }
+    }
     throw e;
   }
 };
