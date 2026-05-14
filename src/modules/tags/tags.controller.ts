@@ -105,6 +105,22 @@ export const updateTag = async (req: Request, res: Response) => {
       tag,
     });
   } catch (e) {
+    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
+      if (
+        e.cause.code === "23505" &&
+        e.cause.constraint === "unique_tag_name_and_user_id"
+      ) {
+        return res.status(400).json({
+          error: "Invalid Fields",
+          details: [
+            {
+              name: "name",
+              message: "Tag with the name already exist.",
+            },
+          ],
+        });
+      }
+    }
     throw e;
   }
 };
@@ -128,22 +144,6 @@ export const deleteTag = async (req: Request, res: Response) => {
       message: "Tag deleted.",
     });
   } catch (e) {
-    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
-      if (
-        e.cause.code === "23505" &&
-        e.cause.constraint === "unique_tag_name_and_user_id"
-      ) {
-        return res.status(400).json({
-          error: "Invalid Fields",
-          details: [
-            {
-              name: "name",
-              message: "Tag with the name already exist.",
-            },
-          ],
-        });
-      }
-    }
     throw e;
   }
 };
