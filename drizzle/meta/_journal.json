@@ -8,6 +8,13 @@
       "when": 1778488848324,
       "tag": "0000_supreme_proteus",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778780803496,
+      "tag": "0001_far_brood",
+      "breakpoints": true
     }
   ]
 }

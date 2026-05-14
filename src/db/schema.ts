@@ -31,7 +31,7 @@ export const users = pgTable("users", {
 
 export const accountType = pgEnum("account_type", ["bank", "wallet", "upi"]);
 
-export type AccountType = (typeof accountType.enumValues)[number]
+export type AccountType = (typeof accountType.enumValues)[number];
 
 export const accounts = pgTable(
   "accounts",
@@ -59,7 +59,8 @@ export const accountTransactionType = pgEnum("account_transaction_type", [
   "expense",
 ]);
 
-export type AccountTransactionType = (typeof accountTransactionType.enumValues)[number]
+export type AccountTransactionType =
+  (typeof accountTransactionType.enumValues)[number];
 
 export const accountTransactions = pgTable(
   "account_transactions",
@@ -74,6 +75,7 @@ export const accountTransactions = pgTable(
     type: accountTransactionType().notNull(),
     description: text("description"),
     transactionDate: timestamp("transaction_date").defaultNow().notNull(),
+    deletedAt: timestamp("deleted_at"),
     ...timestamps,
   },
   (table) => [

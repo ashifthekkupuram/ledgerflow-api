@@ -323,17 +323,29 @@ export const getTransactionsByAccountId = async (
 
     const totalTransactions = result[0]?.totalTransactions ?? 0;
 
-    const transactions = await db
-      .select()
-      .from(accountTransactions)
-      .where(filters)
-      .orderBy(accountTransactions.transactionDate)
-      .limit(env.TRANSACTION_PAGE_LIMIT)
-      .offset(offset);
+    const transactions = await db.query.accountTransactions.findMany({
+      where: filters,
+      orderBy: accountTransactions.transactionDate,
+      limit: env.TRANSACTION_PAGE_LIMIT,
+      offset,
+      with: {
+        tagLinks: {
+          with: {
+            tag: true,
+          },
+        },
+      },
+    });
+
+    const filteredTransacions = transactions.map((tr) => ({
+      ...tr,
+      tags: tr.tagLinks.map((tl) => tl.tag),
+      tagLinks: undefined,
+    }));
 
     return res.json({
       message: "Transactions retieved.",
-      transactions,
+      transactions: filteredTransacions,
       totalTransactions,
     });
   } catch (e) {
