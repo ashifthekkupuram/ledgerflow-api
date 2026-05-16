@@ -9,7 +9,6 @@ export const validateBody = <T>(schema: ZodType<T>) => {
       next();
     } catch (e) {
       if (e instanceof ZodError) {
-        console.log(e.issues)
         return res.status(400).json({
           error: "Invalid Fields.",
           details: e.issues.map((err) => ({
@@ -18,7 +17,7 @@ export const validateBody = <T>(schema: ZodType<T>) => {
           })),
         });
       }
-      throw e;
+      next(e);
     }
   };
 };
@@ -38,7 +37,7 @@ export const validateParams = <T>(schema: ZodType<T>) => {
           })),
         });
       }
-      throw e;
+      next(e);
     }
   };
 };
@@ -58,7 +57,7 @@ export const validateQuery = <T>(schema: ZodType<T>) => {
           })),
         });
       }
-      throw e;
+      next(e);
     }
   };
 };

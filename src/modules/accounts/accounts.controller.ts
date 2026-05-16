@@ -1,15 +1,5 @@
-import type { Request, Response } from "express";
-import {
-  eq,
-  count,
-  DrizzleQueryError,
-  ilike,
-  and,
-  gte,
-  lte,
-  sql,
-  isNull,
-} from "drizzle-orm";
+import type { NextFunction, Request, Response } from "express";
+import { eq, count, ilike, and, gte, lte, sql, isNull } from "drizzle-orm";
 
 import { env } from "../../../env.ts";
 import db from "../../db/connection.ts";
@@ -20,9 +10,12 @@ import {
   type AccountType,
   type AccountTransactionType,
 } from "../../db/schema.ts";
-import { DatabaseError } from "pg";
 
-export const getAccounts = async (req: Request, res: Response) => {
+export const getAccounts = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { page, name, type } = req.query;
 
@@ -56,11 +49,15 @@ export const getAccounts = async (req: Request, res: Response) => {
       totalAccounts,
     });
   } catch (e) {
-    throw e;
+    next(e);
   }
 };
 
-export const getAccountById = async (req: Request, res: Response) => {
+export const getAccountById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
 
@@ -80,11 +77,15 @@ export const getAccountById = async (req: Request, res: Response) => {
       account,
     });
   } catch (e) {
-    throw e;
+    next(e);
   }
 };
 
-export const createAccount = async (req: Request, res: Response) => {
+export const createAccount = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { name, balance, type } = req.body;
 
@@ -103,26 +104,15 @@ export const createAccount = async (req: Request, res: Response) => {
       account,
     });
   } catch (e) {
-    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
-      if (
-        e.cause.code === "23505" &&
-        e.cause.constraint === "unique_user_account_name"
-      ) {
-        return res.status(400).json({
-          error: "Already Exist.",
-          fields: {
-            name: "name",
-            message: "An Account with same name already exist.",
-          },
-        });
-      }
-    }
-
-    throw e;
+    next(e);
   }
 };
 
-export const updateAccount = async (req: Request, res: Response) => {
+export const updateAccount = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
     const { name, balance, type } = req.body;
@@ -148,27 +138,15 @@ export const updateAccount = async (req: Request, res: Response) => {
       account,
     });
   } catch (e) {
-    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
-      if (
-        e.cause.code === "23505" &&
-        e.cause.constraint === "unique_user_account_name"
-      ) {
-        return res.status(400).json({
-          error: "Already Exist.",
-          fields: [
-            {
-              name: "name",
-              message: "An Account with same name already exist.",
-            },
-          ],
-        });
-      }
-    }
-    throw e;
+    next(e);
   }
 };
 
-export const deleteAccount = async (req: Request, res: Response) => {
+export const deleteAccount = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
 
@@ -187,13 +165,14 @@ export const deleteAccount = async (req: Request, res: Response) => {
       message: "Account deleted.",
     });
   } catch (e) {
-    throw e;
+    next(e);
   }
 };
 
 export const createTransactionByAccountId = async (
   req: Request,
   res: Response,
+  next: NextFunction,
 ) => {
   try {
     const { id } = req.params;
@@ -260,33 +239,14 @@ export const createTransactionByAccountId = async (
       newTransaction,
     });
   } catch (e) {
-    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
-      if (
-        e.cause.code === "23514" &&
-        e.cause.constraint === "check_account_balance_non_negative"
-      ) {
-        return res.status(400).json({
-          error: "Insufficient balance.",
-        });
-      }
-      if (
-        e.cause.code === "23505" &&
-        e.cause.constraint ===
-          "unique_transaction_tag_id_and_account_transaction_id"
-      ) {
-        return res.status(400).json({
-          error: "Field errors.",
-          details: [{ name: "tags", message: "Cannot add same tag twice." }],
-        });
-      }
-    }
-    throw e;
+    next(e);
   }
 };
 
 export const getTransactionsByAccountId = async (
   req: Request,
   res: Response,
+  next: NextFunction,
 ) => {
   try {
     const { id } = req.params;
@@ -351,6 +311,6 @@ export const getTransactionsByAccountId = async (
       totalTransactions,
     });
   } catch (e) {
-    throw e;
+    next(e);
   }
 };

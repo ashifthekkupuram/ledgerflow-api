@@ -1,11 +1,14 @@
-import type { Request, Response } from "express";
-import { ilike, and, eq, DrizzleQueryError } from "drizzle-orm";
+import type { NextFunction, Request, Response } from "express";
+import { ilike, and, eq } from "drizzle-orm";
 
 import db from "../../db/connection.ts";
 import { tags } from "../../db/schema.ts";
-import { DatabaseError } from "pg";
 
-export const getTags = async (req: Request, res: Response) => {
+export const getTags = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { name } = req.query;
 
@@ -21,11 +24,15 @@ export const getTags = async (req: Request, res: Response) => {
       tags: datas,
     });
   } catch (e) {
-    throw e;
+    next(e);
   }
 };
 
-export const getTagById = async (req: Request, res: Response) => {
+export const getTagById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
 
@@ -45,11 +52,15 @@ export const getTagById = async (req: Request, res: Response) => {
       tag,
     });
   } catch (e) {
-    throw e;
+    next(e);
   }
 };
 
-export const createTag = async (req: Request, res: Response) => {
+export const createTag = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { name } = req.body;
 
@@ -63,27 +74,15 @@ export const createTag = async (req: Request, res: Response) => {
       tag,
     });
   } catch (e) {
-    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
-      if (
-        e.cause.code === "23505" &&
-        e.cause.constraint === "unique_tag_name_and_user_id"
-      ) {
-        return res.status(400).json({
-          error: "Invalid Fields",
-          details: [
-            {
-              name: "name",
-              message: "Tag with the name already exist.",
-            },
-          ],
-        });
-      }
-    }
-    throw e;
+    next(e);
   }
 };
 
-export const updateTag = async (req: Request, res: Response) => {
+export const updateTag = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
     const { name } = req.body;
@@ -105,27 +104,15 @@ export const updateTag = async (req: Request, res: Response) => {
       tag,
     });
   } catch (e) {
-    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
-      if (
-        e.cause.code === "23505" &&
-        e.cause.constraint === "unique_tag_name_and_user_id"
-      ) {
-        return res.status(400).json({
-          error: "Invalid Fields",
-          details: [
-            {
-              name: "name",
-              message: "Tag with the name already exist.",
-            },
-          ],
-        });
-      }
-    }
-    throw e;
+    next(e);
   }
 };
 
-export const deleteTag = async (req: Request, res: Response) => {
+export const deleteTag = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
 
@@ -144,6 +131,6 @@ export const deleteTag = async (req: Request, res: Response) => {
       message: "Tag deleted.",
     });
   } catch (e) {
-    throw e;
+    next(e);
   }
 };

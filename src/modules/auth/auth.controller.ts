@@ -1,13 +1,16 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { promisify } from "util";
-import { DrizzleQueryError, eq } from "drizzle-orm";
-import { DatabaseError } from "pg";
+import { eq } from "drizzle-orm";
 
 import db from "../../db/connection.ts";
 import { users } from "../../db/schema.ts";
 import { comparePassword, hashPassword } from "../../utils/password.ts";
 
-export const login = async (req: Request, res: Response) => {
+export const login = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { email, password } = req.body;
 
@@ -47,11 +50,15 @@ export const login = async (req: Request, res: Response) => {
       },
     });
   } catch (e) {
-    throw e;
+    next(e);
   }
 };
 
-export const register = async (req: Request, res: Response) => {
+export const register = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { email, username, name, password } = req.body;
 
@@ -86,32 +93,15 @@ export const register = async (req: Request, res: Response) => {
       user,
     });
   } catch (e) {
-    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
-      // Check if user with email already exist
-      if (
-        e.cause.code === "23505" &&
-        e.cause.constraint === "users_email_unique"
-      ) {
-        return res.status(400).json({
-          error: "user with the email already exist.",
-        });
-      }
-
-      // Check if user with username already exist
-      if (
-        e.cause.code === "23505" &&
-        e.cause.constraint === "users_username_unique"
-      ) {
-        return res.status(400).json({
-          error: "username already taken.",
-        });
-      }
-    }
-    throw e;
+    next(e);
   }
 };
 
-export const logout = async (req: Request, res: Response) => {
+export const logout = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const destroy = promisify(req.session.destroy).bind(req.session);
 
@@ -123,6 +113,6 @@ export const logout = async (req: Request, res: Response) => {
       message: "Logout Successful.",
     });
   } catch (e) {
-    throw e;
+    next(e);
   }
 };

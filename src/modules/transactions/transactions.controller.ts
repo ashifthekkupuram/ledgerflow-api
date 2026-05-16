@@ -1,4 +1,5 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
+import { eq, inArray, sql } from "drizzle-orm";
 
 import db from "../../db/connection.ts";
 import {
@@ -6,10 +7,12 @@ import {
   accountTransactions,
   transactionTags,
 } from "../../db/schema.ts";
-import { DrizzleQueryError, eq, inArray, sql } from "drizzle-orm";
-import { DatabaseError } from "pg";
 
-export const getTransaction = async (req: Request, res: Response) => {
+export const getTransaction = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
 
@@ -41,11 +44,15 @@ export const getTransaction = async (req: Request, res: Response) => {
       transaction: filtered,
     });
   } catch (e) {
-    throw e;
+    next(e);
   }
 };
 
-export const updateTransaction = async (req: Request, res: Response) => {
+export const updateTransaction = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
     const {
@@ -153,31 +160,15 @@ export const updateTransaction = async (req: Request, res: Response) => {
       transaction: filtered,
     });
   } catch (e) {
-    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
-      if (
-        e.cause.code === "23514" &&
-        e.cause.constraint === "check_account_balance_non_negative"
-      ) {
-        return res.status(400).json({
-          error: "Insufficient balance.",
-        });
-      }
-      if (
-        e.cause.code === "23505" &&
-        e.cause.constraint ===
-          "unique_transaction_tag_id_and_account_transaction_id"
-      ) {
-        return res.status(400).json({
-          error: "Field errors.",
-          details: [{ name: "tags", message: "Cannot add same tag twice." }],
-        });
-      }
-    }
-    throw e;
+    next(e);
   }
 };
 
-export const deleteTransaction = async (req: Request, res: Response) => {
+export const deleteTransaction = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
 
@@ -231,22 +222,15 @@ export const deleteTransaction = async (req: Request, res: Response) => {
       message: "Transaction Deleted.",
     });
   } catch (e) {
-    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
-      if (
-        e.cause.code === "23514" &&
-        e.cause.constraint === "check_account_balance_non_negative"
-      ) {
-        return res.status(400).json({
-          error: "Insufficient balance.",
-        });
-      }
-    }
-
-    throw e;
+    next(e);
   }
 };
 
-export const recoverTransaction = async (req: Request, res: Response) => {
+export const recoverTransaction = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
 
@@ -322,16 +306,6 @@ export const recoverTransaction = async (req: Request, res: Response) => {
       transaction: filtered,
     });
   } catch (e) {
-    if (e instanceof DrizzleQueryError && e.cause instanceof DatabaseError) {
-      if (
-        e.cause.code === "23514" &&
-        e.cause.constraint === "check_account_balance_non_negative"
-      ) {
-        return res.status(400).json({
-          error: "Insufficient balance.",
-        });
-      }
-    }
-    throw e;
+    next(e);
   }
 };
