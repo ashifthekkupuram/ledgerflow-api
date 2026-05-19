@@ -88,7 +88,7 @@ export const register = async (
 
     await save();
 
-    return res.json({
+    return res.status(201).json({
       message: "Register Successfull",
       user,
     });

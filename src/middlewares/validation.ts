@@ -10,7 +10,7 @@ export const validateBody = <T>(schema: ZodType<T>) => {
     } catch (e) {
       if (e instanceof ZodError) {
         return res.status(400).json({
-          error: "Invalid Fields.",
+          error: "Validation Error.",
           details: e.issues.map((err) => ({
             name: err.path.join("."),
             message: err.message,
@@ -30,7 +30,7 @@ export const validateParams = <T>(schema: ZodType<T>) => {
     } catch (e) {
       if (e instanceof ZodError) {
         return res.status(400).json({
-          error: "Invalid Fields.",
+          error: "Validation Error.",
           details: e.issues.map((err) => ({
             name: err.path.join("."),
             message: err.message,
@@ -50,7 +50,7 @@ export const validateQuery = <T>(schema: ZodType<T>) => {
     } catch (e) {
       if (e instanceof ZodError) {
         return res.status(400).json({
-          error: "Invalid Fields.",
+          error: "Validation Error.",
           details: e.issues.map((err) => ({
             name: err.path.join("."),
             message: err.message,

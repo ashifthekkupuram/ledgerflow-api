@@ -16,7 +16,7 @@ if (isDevelopement) {
 const EnvSchema = z.object({
   APP_STAGE: z.enum(["dev", "testing", "production"]).default("dev"),
   NODE_ENV: z
-    .enum(["development", "testing", "production"])
+    .enum(["development", "test", "production"])
     .default("development"),
   PORT: z.coerce.number().default(5000),
   DATABASE_CONNECTION_URL: z.string().startsWith("postgresql://"),
@@ -45,5 +45,5 @@ try {
 }
 
 export const isDev = () => env.NODE_ENV === "development";
-export const isTest = () => env.NODE_ENV === "testing";
+export const isTest = () => env.NODE_ENV === "test";
 export const isProd = () => env.NODE_ENV === "production";

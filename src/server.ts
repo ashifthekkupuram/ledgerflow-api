@@ -11,6 +11,7 @@ import authRoute from "./modules/auth/auth.route.ts";
 import accountsRoute from "./modules/accounts/accounts.route.ts";
 import transactionRoute from "./modules/transactions/transactions.route.ts";
 import tagsRoute from "./modules/tags/tags.route.ts";
+import usersRoute from "./modules/users/users.route.ts";
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use("/api/auth", authRoute);
 app.use("/api/accounts", accountsRoute);
 app.use("/api/transaction", transactionRoute);
 app.use("/api/tags", tagsRoute);
+app.use("/api/users", usersRoute);
 
 // Error Handler and Catcher
 app.use(errorHandler);

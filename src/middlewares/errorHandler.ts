@@ -22,7 +22,7 @@ export const errorHandler = (
           "unique_transaction_tag_id_and_account_transaction_id"
         ) {
           return res.status(400).json({
-            error: "Field errors.",
+            error: "Validation Error.",
             details: [{ name: "tags", message: "Cannot add same tag twice." }],
           });
         }
@@ -30,7 +30,7 @@ export const errorHandler = (
         // A user cannot create two tags with the same name
         if (err.cause.constraint === "unique_tag_name_and_user_id") {
           return res.status(400).json({
-            error: "Invalid Fields",
+            error: "Validation Error.",
             details: [
               {
                 name: "name",
@@ -43,7 +43,7 @@ export const errorHandler = (
         // A user cannot create two accounts with the same name
         if (err.cause.constraint === "unique_user_account_name") {
           return res.status(400).json({
-            error: "Already Exist.",
+            error: "Validation Error.",
             details: [
               {
                 name: "name",
@@ -56,7 +56,7 @@ export const errorHandler = (
         // Cannot create user with email that already exist
         if (err.cause.constraint === "users_email_unique") {
           return res.status(400).json({
-            error: "Validation Error",
+            error: "Validation Error.",
             details: [
               {
                 name: "email",
@@ -69,7 +69,7 @@ export const errorHandler = (
         // User cannot take username that taken by others
         if (err.cause.constraint === "users_username_unique") {
           return res.status(400).json({
-            error: "Validation Error",
+            error: "Validation Error.",
             details: [
               {
                 name: "username",
@@ -92,7 +92,7 @@ export const errorHandler = (
         // Transaction amount must be above 0
         if (err.cause.constraint === "check_transaction_amount_non_negative") {
           return res.status(400).json({
-            error: "Invalid Fields.",
+            error: "Validation Error.",
             details: [
               {
                 name: "amount",
@@ -112,6 +112,8 @@ export const errorHandler = (
       message = err.message;
       stack = err.stack || "";
     }
+
+    console.log(err)
 
     return res.status(status).json({
       error: message,

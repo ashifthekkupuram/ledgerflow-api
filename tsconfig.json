@@ -2,7 +2,7 @@
   "compilerOptions": {
     "module": "nodenext",
     "target": "esnext",
-    "types": [],
+    "types": ["vitest/globals"],
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,
@@ -18,7 +18,7 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": true,
   },
   "include": ["src/**/*"]
 }

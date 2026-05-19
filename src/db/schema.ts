@@ -162,3 +162,17 @@ export const transactionTagRelations = relations(
     }),
   }),
 );
+
+// Types for Seleting Datas
+export type User = typeof users.$inferSelect;
+export type Tag = typeof tags.$inferSelect;
+export type Account = typeof accounts.$inferSelect;
+export type Transaction = typeof accountTransactions.$inferSelect;
+export type TagTransaction = typeof transactionTags.$inferSelect;
+
+// Type for Inserting new Datas
+export type NewUser = typeof users.$inferInsert;
+export type NewTag = typeof tags.$inferInsert;
+export type NewAccount = typeof accounts.$inferInsert;
+export type NewTransaction = typeof accountTransactions.$inferInsert;
+export type NewTagTransaction = typeof transactionTags.$inferInsert;
