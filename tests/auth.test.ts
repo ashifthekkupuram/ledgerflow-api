@@ -156,7 +156,7 @@ describe("Auth endpoints test", () => {
       expect(response.body.error).toBe("Invalid Credentials.");
     });
 
-    it("Should return error for wrong password", async () => {
+    it("Should return error for empty body", async () => {
       const response = await request(app)
         .post("/api/auth/login")
         .send({})
