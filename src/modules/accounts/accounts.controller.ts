@@ -236,7 +236,7 @@ export const createTransactionByAccountId = async (
 
     return res.status(201).json({
       message: "Transaction created.",
-      newTransaction,
+      transaction: newTransaction,
     });
   } catch (e) {
     next(e);

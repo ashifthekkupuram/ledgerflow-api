@@ -68,7 +68,6 @@ accountsRoute.delete(
   authenticate,
   validateParams(accountIdParamSchema),
   accountOwner,
-  validateBody(accountBodySchema),
   deleteAccount,
 );
 

@@ -17,6 +17,8 @@ const accountOwner = async (
       .from(accounts)
       .where(eq(accounts.id, id as string));
 
+      console.log(account)
+
     if (!account) {
       return res.status(404).json({
         error: "Account not found.",
