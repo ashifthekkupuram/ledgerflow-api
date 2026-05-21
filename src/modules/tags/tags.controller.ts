@@ -69,7 +69,7 @@ export const createTag = async (
       .values({ name, userId: req.session.userId as string })
       .returning();
 
-    return res.json({
+    return res.status(201).json({
       message: "Tag created.",
       tag,
     });
