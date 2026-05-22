@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import db from "../../db/connection.ts";
 import {
@@ -132,9 +132,23 @@ export const updateTransaction = async (
 
       // Deleting Tags if Ids exist
       if (deleteTagIds && deleteTagIds.length > 0) {
-        await tx
-          .delete(transactionTags)
-          .where(inArray(transactionTags.id, deleteTagIds));
+        const transactionTagsToDelete = await tx
+          .select({ id: transactionTags.id })
+          .from(transactionTags)
+          .where(
+            and(
+              inArray(transactionTags.tagId, deleteTagIds),
+              eq(transactionTags.accountTransactionId, transaction.id),
+            ),
+          );
+
+        const refinedDeleteIds = transactionTagsToDelete.map((t) => t.id);
+
+        if (refinedDeleteIds.length > 0) {
+          await tx
+            .delete(transactionTags)
+            .where(inArray(transactionTags.id, refinedDeleteIds));
+        }
       }
     });
 

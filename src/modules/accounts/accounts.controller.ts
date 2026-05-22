@@ -234,9 +234,26 @@ export const createTransactionByAccountId = async (
 
     if (!newTransaction) throw new Error("Something went wrong.");
 
+    const transaction = await db.query.accountTransactions.findFirst({
+      where: eq(accountTransactions.id, newTransaction.id),
+      with: {
+        tagLinks: {
+          with: {
+            tag: true,
+          },
+        },
+      },
+    });
+
+    const filtered = {
+      ...transaction,
+      tags: transaction?.tagLinks.map((tl) => tl.tag),
+      tagLinks: undefined,
+    };
+
     return res.status(201).json({
       message: "Transaction created.",
-      transaction: newTransaction,
+      transaction: filtered,
     });
   } catch (e) {
     next(e);
