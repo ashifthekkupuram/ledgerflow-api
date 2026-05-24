@@ -18,7 +18,7 @@ const app = express();
 const pgSession = connectPgSession(session);
 
 // App configurations
-app.use(cors());
+app.use(cors({ origin: env.CORS_ORIGINS.split(" "), credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(

@@ -19,6 +19,8 @@ export const getAccounts = async (
   try {
     const { page, name, type } = req.query;
 
+    console.log(page);
+
     const pageNumber = Math.max(1, Number(page) || 1);
     const offset = (pageNumber - 1) * env.ACCOUNTS_PAGE_LIMIT;
 
@@ -43,10 +45,14 @@ export const getAccounts = async (
       .limit(env.ACCOUNTS_PAGE_LIMIT)
       .offset(offset);
 
+    const hasMore = pageNumber * env.ACCOUNTS_PAGE_LIMIT < totalAccounts;
+
     return res.json({
       message: "Account Retrieved.",
-      accounts: datas,
-      totalAccounts,
+      accounts: {
+        data: datas,
+        nextPage: hasMore ? pageNumber + 1 : undefined,
+      },
     });
   } catch (e) {
     next(e);
@@ -322,10 +328,14 @@ export const getTransactionsByAccountId = async (
       tagLinks: undefined,
     }));
 
+    const hasMore = pageNumber * env.TRANSACTION_PAGE_LIMIT < totalTransactions;
+
     return res.json({
       message: "Transactions retieved.",
-      transactions: filteredTransacions,
-      totalTransactions,
+      transactions: {
+        data: filteredTransacions,
+        nextPage: hasMore ? pageNumber + 1 : undefined,
+      },
     });
   } catch (e) {
     next(e);

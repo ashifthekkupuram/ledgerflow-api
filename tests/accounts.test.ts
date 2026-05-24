@@ -60,7 +60,7 @@ describe("accounts end points tests", () => {
 
       expect(response.body).toHaveProperty("message");
       expect(response.body).toHaveProperty("accounts");
-      expect(response.body).toHaveProperty("totalAccounts");
+      expect(response.body.accounts).toHaveProperty("data");
     });
   });
 
@@ -228,7 +228,8 @@ describe("accounts end points tests", () => {
 
       expect(updatedAccount.body).toHaveProperty("message");
       expect(updatedAccount.body).toHaveProperty("transactions");
-      expect(updatedAccount.body.transactions).toHaveLength(2);
+      expect(updatedAccount.body.transactions).toHaveProperty("data");
+      expect(updatedAccount.body.transactions.data).toHaveLength(2);
     });
   });
 });
