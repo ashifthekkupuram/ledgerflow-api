@@ -42,9 +42,11 @@ jobs:
         run: npx drizzle-kit migrate
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ledgerflow_test
+          COOKIE_SECRET_KEY: ${{ secrets.COOKIE_SECRET_KEY }}
 
       - name: Run tests
         run: npx vitest run --coverage
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ledgerflow_test
           NODE_ENV: test
+          COOKIE_SECRET_KEY: ${{ secrets.COOKIE_SECRET_KEY }}
