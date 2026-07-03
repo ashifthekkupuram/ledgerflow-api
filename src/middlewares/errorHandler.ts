@@ -113,8 +113,6 @@ export const errorHandler = (
       stack = err.stack || "";
     }
 
-    console.log(err)
-
     return res.status(status).json({
       error: message,
       ...(env.NODE_ENV === "development" && {
@@ -122,7 +120,6 @@ export const errorHandler = (
       }),
     });
   } catch (e) {
-    console.log(e);
     return res.status(500).json({
       error: "Internal Server Error",
       ...(env.NODE_ENV === "development" && {

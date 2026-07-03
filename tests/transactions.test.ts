@@ -79,8 +79,6 @@ describe("transactions endpoints test", () => {
         })
         .expect(200);
 
-      console.log(newResponse.body.transaction)
-
       expect(newResponse.body).toHaveProperty("message");
       expect(newResponse.body).toHaveProperty("transaction");
       expect(newResponse.body.transaction.type).toBe("expense");

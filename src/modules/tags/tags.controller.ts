@@ -3,6 +3,9 @@ import { ilike, and, eq } from "drizzle-orm";
 
 import db from "../../db/connection.ts";
 import { tags } from "../../db/schema.ts";
+import { invalidateCache, redisClient } from "../../utils/redis.ts";
+
+import { getVersion } from "../../utils/redis.ts";
 
 export const getTags = async (
   req: Request,
@@ -17,7 +20,24 @@ export const getTags = async (
       name ? ilike(tags.name, `%${name}%`) : undefined,
     );
 
+    const version = await getVersion(req.session.userId || "", "tags");
+
+    const cacheKey = `tags:v${version}:${req.session.userId || ""}:${name}`;
+
+    let cacheData = await redisClient.get(cacheKey);
+
+    if (cacheData) {
+      return res.json({
+        message: "Tags Retrieved.",
+        tags: JSON.parse(cacheData),
+      });
+    }
+
     const datas = await db.select().from(tags).where(filters);
+
+    await redisClient.set(cacheKey, JSON.stringify(datas), {
+      expiration: { type: "EX", value: 300 },
+    });
 
     return res.json({
       message: "Tags Retrieved.",
@@ -69,6 +89,10 @@ export const createTag = async (
       .values({ name, userId: req.session.userId as string })
       .returning();
 
+    const versionKey = `tags:version:${req.session.userId}`;
+
+    await invalidateCache(req.session.userId || "", "tags");
+
     return res.status(201).json({
       message: "Tag created.",
       tag,
@@ -99,6 +123,8 @@ export const updateTag = async (
       });
     }
 
+    await invalidateCache(req.session.userId || "", "tags");
+
     return res.json({
       message: "Tag updated.",
       tag,
@@ -126,6 +152,8 @@ export const deleteTag = async (
         error: "Tag not found.",
       });
     }
+
+    await invalidateCache(req.session.userId || "", "tags");
 
     return res.json({
       message: "Tag deleted.",

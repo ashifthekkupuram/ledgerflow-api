@@ -19,8 +19,6 @@ export const getAccounts = async (
   try {
     const { page, name, type } = req.query;
 
-    console.log(page);
-
     const pageNumber = Math.max(1, Number(page) || 1);
     const offset = (pageNumber - 1) * env.ACCOUNTS_PAGE_LIMIT;
 

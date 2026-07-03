@@ -24,7 +24,8 @@ const EnvSchema = z.object({
   PASSWORD_SALT_ROUNDS: z.coerce.number().min(10).max(20).default(12),
   ACCOUNTS_PAGE_LIMIT: z.coerce.number().min(1).default(8),
   TRANSACTION_PAGE_LIMIT: z.coerce.number().min(1).default(8),
-  CORS_ORIGINS: z.string().default('http://localhost:5173')
+  CORS_ORIGINS: z.string().default("http://localhost:5173"),
+  REDIS_URI: z.string().startsWith("redis"),
 });
 
 type EnvType = z.infer<typeof EnvSchema>;
