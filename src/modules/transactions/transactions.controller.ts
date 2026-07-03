@@ -7,7 +7,7 @@ import {
   accountTransactions,
   transactionTags,
 } from "../../db/schema.ts";
-import { invalidateCache } from "../../utils/redis.ts";
+import { invalidateCache } from "../../db/redis.ts";
 
 export const getTransaction = async (
   req: Request,

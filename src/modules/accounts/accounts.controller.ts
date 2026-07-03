@@ -10,7 +10,7 @@ import {
   type AccountType,
   type AccountTransactionType,
 } from "../../db/schema.ts";
-import { getVersion, invalidateCache, redisClient } from "../../utils/redis.ts";
+import { getVersion, invalidateCache, redisClient } from "../../db/redis.ts";
 
 export const getAccounts = async (
   req: Request,

@@ -3,7 +3,7 @@ import { ilike, and, eq } from "drizzle-orm";
 
 import db from "../../db/connection.ts";
 import { tags } from "../../db/schema.ts";
-import { invalidateCache, redisClient, getVersion } from "../../utils/redis.ts";
+import { invalidateCache, redisClient, getVersion } from "../../db/redis.ts";
 
 export const getTags = async (
   req: Request,

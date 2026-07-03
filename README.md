@@ -20,6 +20,7 @@
   - [Tags](#tags)
 - [Middleware & Authorization](#middleware--authorization)
 - [Data Integrity & Architecture Decisions](#data-integrity--architecture-decisions)
+- [Caching Strategy](#caching-strategy)
 - [Validation](#validation)
 - [Error Handling](#error-handling)
 - [Testing](#testing)
@@ -29,7 +30,7 @@
 
 ## Overview
 
-LedgerFlow is a multi-user financial tracking API where each user can manage multiple accounts (bank, wallet, or UPI) and record income or expense transactions against them. Accounts have a running balance that automatically updates whenever a transaction is created, updated, soft-deleted, or recovered. All balance mutations run inside PostgreSQL database transactions with row-level locking to prevent race conditions. The API is fully session-authenticated — every protected route requires a valid session cookie.
+LedgerFlow is a multi-user financial tracking API where each user can manage multiple accounts (bank, wallet, or UPI) and record income or expense transactions against them. Accounts have a running balance that automatically updates whenever a transaction is created, updated, soft-deleted, or recovered. All balance mutations run inside PostgreSQL database transactions with row-level locking to prevent race conditions. The API is fully session-authenticated — every protected route requires a valid session cookie. Read-heavy endpoints (accounts, transactions, tags) are backed by a **versioned Redis cache** to reduce database load, with automatic invalidation on any write.
 
 ---
 
@@ -46,6 +47,7 @@ LedgerFlow is a multi-user financial tracking API where each user can manage mul
 - **Ownership enforcement** — dedicated middleware verifies account, transaction, and tag ownership on every protected route; unauthorized access returns `403`
 - **Request validation** — all route params, request bodies, and query strings are validated with Zod; env variables validated at startup
 - **Filtering & pagination** — accounts filterable by name and type; transactions filterable by type, description, date range (`afterDate`, `befourDate`); cursor-style `nextPage` pagination
+- **Redis caching** — accounts, transactions, and tags reads are cached per-user with a versioned key scheme; any create/update/delete/recover operation invalidates the relevant namespace instantly, with no manual key tracking or bulk deletes required
 - **Constraint-level guards** — PostgreSQL `CHECK` constraints enforce `balance >= 0` and `amount > 0`; the error handler maps constraint violations to clean API error responses
 - **ESLint + TypeScript strict mode** — `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` all enabled
 - **Full test coverage** — every route tested with Vitest and Supertest; tests run sequentially against a dedicated test database
@@ -61,6 +63,7 @@ LedgerFlow is a multi-user financial tracking API where each user can manage mul
 | Language | TypeScript (`tsx` runner, `nodenext` module) |
 | Database | PostgreSQL |
 | ORM | Drizzle ORM |
+| Cache | Redis (`redis` client) |
 | Validation | Zod |
 | Auth | express-session + bcrypt |
 | Session Store | connect-pg-simple (`user_sessions` table, auto-created) |
@@ -75,6 +78,7 @@ LedgerFlow is a multi-user financial tracking API where each user can manage mul
 
 - Node.js v18+
 - PostgreSQL 15+
+- Redis 6+
 
 ### Installation
 
@@ -93,6 +97,16 @@ npx drizzle-kit push
 ```
 
 This pushes the schema to your database. The `user_sessions` table is created automatically by `connect-pg-simple` on first server start.
+
+### Redis Setup
+
+Make sure a Redis instance is running and reachable at the URL configured in `REDIS_URI` (see [Environment Variables](#environment-variables)). Locally, the quickest option is:
+
+```bash
+docker run -d --name ledgerflow-redis -p 6379:6379 redis:7-alpine
+```
+
+The server establishes the Redis connection on startup (`initializeRedisClient()` in `src/index.ts`) before it begins accepting requests. If Redis is unreachable at boot, the server logs the error and exits — caching is treated as a required dependency, not an optional one.
 
 ### Running
 
@@ -113,6 +127,8 @@ APP_STAGE=dev                        # dev | testing | production
 NODE_ENV=development                 # development | test | production
 PORT=8000
 DATABASE_CONNECTION_URL=postgresql://user:password@localhost/mydatabase
+REDIS_URI=redis://localhost:6379     # Redis connection string
+CACHE_TTL_SECONDS=3600               # default TTL for cached reads (min: 60)
 COOKIE_SECRET_KEY=your_secret_key_must_be_at_least_32_chars
 PASSWORD_SALT_ROUNDS=12              # min: 10, max: 20
 ACCOUNTS_PAGE_LIMIT=8
@@ -120,7 +136,7 @@ TRANSACTION_PAGE_LIMIT=8
 CORS_ORIGINS=http://localhost:5173   # space-separated for multiple origins
 ```
 
-All variables are validated at startup via Zod. The server exits immediately with a descriptive error if any variable is missing or invalid. For testing, create `.env.test` — it is loaded automatically when `APP_STAGE=testing`.
+All variables are validated at startup via Zod. The server exits immediately with a descriptive error if any variable is missing or invalid. For testing, create `.env.test` — it is loaded automatically when `APP_STAGE=testing`. `.env.test` typically points `REDIS_URI` at a separate database index (e.g. `redis://localhost:6379/1`) so cached test data never collides with development data.
 
 ---
 
@@ -150,11 +166,13 @@ All variables are validated at startup via Zod. The server exits immediately wit
 
 All foreign keys use `onDelete: cascade`.
 
+> **Note:** Redis is not a system of record for any of the above — it only ever holds derived, disposable copies of query results keyed off the current version counter. PostgreSQL remains the single source of truth; the cache can be flushed entirely at any time with no data loss.
+
 ---
 
 ## API Reference
 
-All protected routes require an active session cookie (`connect.sid`). Unauthenticated requests return `401`.
+All protected routes require an active session cookie (`connect.sid`). Unauthenticated requests return `401`. `GET` routes on accounts, transactions, and tags are cache-backed as described in [Caching Strategy](#caching-strategy); this is transparent to clients — cached and non-cached responses have identical shapes.
 
 ---
 
@@ -244,17 +262,17 @@ Destroys the current session after a successful password change — user must lo
 
 ### Accounts
 
-All routes require authentication. Routes with `/:id` additionally verify account ownership via `accountOwner` middleware (`403` if not owner).
+All routes require authentication. Routes with `/:id` additionally verify account ownership via `accountOwner` middleware (`403` if not owner). `GET /api/accounts` and `GET /api/accounts/:id/transactions` are cached; every write below invalidates the `accounts` cache namespace, and transaction writes also invalidate `transactions` (see [Caching Strategy](#caching-strategy)).
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/accounts` | List accounts (paginated, filterable) |
-| `GET` | `/api/accounts/:id` | Get account by ID |
-| `POST` | `/api/accounts` | Create an account |
-| `PUT` | `/api/accounts/:id` | Update an account |
-| `DELETE` | `/api/accounts/:id` | Delete an account (cascades transactions) |
-| `POST` | `/api/accounts/:id/transactions` | Create a transaction on an account |
-| `GET` | `/api/accounts/:id/transactions` | List transactions for an account (paginated, filterable) |
+| `GET` | `/api/accounts` | List accounts (paginated, filterable) — cached |
+| `GET` | `/api/accounts/:id` | Get account by ID — cached |
+| `POST` | `/api/accounts` | Create an account — invalidates `accounts` cache |
+| `PUT` | `/api/accounts/:id` | Update an account — invalidates `accounts` cache |
+| `DELETE` | `/api/accounts/:id` | Delete an account (cascades transactions) — invalidates `accounts` and `transactions` cache |
+| `POST` | `/api/accounts/:id/transactions` | Create a transaction on an account — invalidates `accounts` and `transactions` cache (balance changes) |
+| `GET` | `/api/accounts/:id/transactions` | List transactions for an account (paginated, filterable) — cached |
 
 #### `GET /api/accounts`
 
@@ -274,7 +292,7 @@ Query params:
 }
 ```
 
-`nextPage` is `undefined` when there are no more pages.
+`nextPage` is `undefined` when there are no more pages. The exact `page`/`name`/`type` combination forms part of the cache key, so different filter combinations are cached independently and do not collide.
 
 ---
 
@@ -332,7 +350,7 @@ All `tagIds` must exist and belong to the authenticated user (verified by `tagsO
 }
 ```
 
-Tags are resolved and returned as full tag objects (not just IDs).
+Tags are resolved and returned as full tag objects (not just IDs). Because this mutates the account's balance, both the `accounts` and `transactions` cache namespaces are invalidated for the user after the DB transaction commits successfully.
 
 ---
 
@@ -362,14 +380,14 @@ Soft-deleted transactions (`deletedAt IS NOT NULL`) are excluded from results.
 
 ### Transactions
 
-Standalone transaction routes — operate on a transaction by its own ID. All routes require authentication and verify transaction ownership via `transactionOwner` middleware.
+Standalone transaction routes — operate on a transaction by its own ID. All routes require authentication and verify transaction ownership via `transactionOwner` middleware. Every write route below invalidates both the `accounts` cache namespace (balance changed) and the `transactions` cache namespace for the owning user.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/transaction/:id` | Get a transaction by ID |
-| `PUT` | `/api/transaction/:id` | Update a transaction (balance auto-adjusts) |
-| `DELETE` | `/api/transaction/:id` | Soft-delete a transaction (balance reversed) |
-| `PATCH` | `/api/transaction/:id/recover` | Recover a soft-deleted transaction (balance reapplied) |
+| `GET` | `/api/transaction/:id` | Get a transaction by ID — cached |
+| `PUT` | `/api/transaction/:id` | Update a transaction (balance auto-adjusts) — invalidates cache |
+| `DELETE` | `/api/transaction/:id` | Soft-delete a transaction (balance reversed) — invalidates cache |
+| `PATCH` | `/api/transaction/:id/recover` | Recover a soft-deleted transaction (balance reapplied) — invalidates cache |
 
 #### `PUT /api/transaction/:id`
 
@@ -386,7 +404,7 @@ All fields optional. Only provided fields are updated. Balance only recalculates
 }
 ```
 
-The balance diff is computed as `(new effect) - (old effect)` and applied atomically with a row lock on the account.
+The balance diff is computed as `(new effect) - (old effect)` and applied atomically with a row lock on the account. Cache invalidation for `accounts` and `transactions` runs only after this transaction commits — never before, so a rolled-back update never bumps the version unnecessarily.
 
 ---
 
@@ -404,17 +422,17 @@ Clears `deletedAt` and reapplies the transaction's effect on the account balance
 
 ### Tags
 
-All routes require authentication. Routes with `/:id` verify tag ownership via `tagOwner` middleware.
+All routes require authentication. Routes with `/:id` verify tag ownership via `tagOwner` middleware. `GET` routes are cached under the `tags` namespace; every write below invalidates it.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/tags` | List all tags for the current user |
-| `GET` | `/api/tags/:id` | Get a tag by ID |
-| `POST` | `/api/tags` | Create a tag |
-| `PUT` | `/api/tags/:id` | Update a tag |
-| `DELETE` | `/api/tags/:id` | Delete a tag |
+| `GET` | `/api/tags` | List all tags for the current user — cached |
+| `GET` | `/api/tags/:id` | Get a tag by ID — cached |
+| `POST` | `/api/tags` | Create a tag — invalidates `tags` cache |
+| `PUT` | `/api/tags/:id` | Update a tag — invalidates `tags` cache |
+| `DELETE` | `/api/tags/:id` | Delete a tag — invalidates `tags` cache |
 
-Tags are not paginated. The `GET /api/tags` endpoint accepts an optional `name` query param for partial name search.
+Tags are not paginated. The `GET /api/tags` endpoint accepts an optional `name` query param for partial name search; each distinct `name` filter is cached under its own key.
 
 #### `POST /api/tags`
 
@@ -468,6 +486,7 @@ BEGIN
   UPDATE accounts SET balance = balance ± amount
   INSERT INTO transaction_tags ... (if tags provided)
 COMMIT
+  → invalidate "accounts" and "transactions" cache namespaces for the user
 ```
 
 **Update transaction flow (only if amount or type changed):**
@@ -479,11 +498,12 @@ BEGIN
   UPDATE account_transactions SET ...
   INSERT/DELETE transaction_tags as needed
 COMMIT
+  → invalidate "accounts" and "transactions" cache namespaces for the user
 ```
 
 ### Soft Delete & Recovery
 
-Transactions are never hard-deleted. `DELETE /api/transaction/:id` sets `deletedAt = now()` and reverses the balance. `PATCH /api/transaction/:id/recover` clears `deletedAt` and reapplies the balance. Both operations use the same locking pattern. Soft-deleted transactions are excluded from all list queries via `isNull(accountTransactions.deletedAt)`.
+Transactions are never hard-deleted. `DELETE /api/transaction/:id` sets `deletedAt = now()` and reverses the balance. `PATCH /api/transaction/:id/recover` clears `deletedAt` and reapplies the balance. Both operations use the same locking pattern, and both invalidate the same two cache namespaces on success. Soft-deleted transactions are excluded from all list queries via `isNull(accountTransactions.deletedAt)`.
 
 ### Constraint-Level Guards
 
@@ -495,11 +515,79 @@ Rather than relying purely on application logic, business rules are enforced at 
 - `UNIQUE (userId, name)` on `tags` — no duplicate tag names per user
 - `UNIQUE (accountTransactionId, tagId)` on `transaction_tags` — no duplicate tags on a transaction
 
-The `errorHandler` middleware catches these PostgreSQL error codes (`23505` for unique violations, `23514` for check violations) and maps them to readable API responses.
+The `errorHandler` middleware catches these PostgreSQL error codes (`23505` for unique violations, `23514` for check violations) and maps them to readable API responses. A request that fails a constraint check never reaches the cache-invalidation step, since invalidation only runs after a successful commit.
 
 ### Environment Validation at Startup
 
-`env.ts` parses all environment variables through a Zod schema before the app starts. Any missing or invalid variable causes an immediate exit with a descriptive log — no silent misconfigurations at runtime.
+`env.ts` parses all environment variables through a Zod schema before the app starts. Any missing or invalid variable causes an immediate exit with a descriptive log — no silent misconfigurations at runtime. This includes `REDIS_URI`
+
+---
+
+## Caching Strategy
+
+LedgerFlow uses a **per-user, versioned Redis cache** in front of the `accounts`, `transactions`, and `tags` read routes. The goal is to avoid re-hitting PostgreSQL for repeated list/detail reads while guaranteeing that any write is reflected on the very next read — with no manual cache-key bookkeeping.
+
+### Why versioned keys instead of direct deletion
+
+A naive cache would `DEL` the specific keys affected by a write. That requires tracking every filter/pagination combination ever cached (`accounts:list:page1`, `accounts:list:page2:type=bank`, …) so they can all be found and deleted together — easy to get wrong and easy to leak stale keys. Instead, each user has a single **version counter** per namespace:
+
+```
+{namespace}:version:{userId}
+```
+
+Every cache key for that namespace embeds the current version:
+
+```
+{namespace}:v{version}:{userId}:{querySuffix}
+```
+
+Invalidating is a single atomic `INCR` on the version counter — it doesn't matter how many distinct keys exist under the old version, they all become unreachable at once and expire naturally via TTL.
+
+### Namespaces in use
+
+| Namespace | Covers | Invalidated by |
+|---|---|---|
+| `accounts` | `GET /api/accounts`, `GET /api/accounts/:id` | account create/update/delete; any transaction create/update/delete/recover (balance changes) |
+| `transactions` | `GET /api/accounts/:id/transactions`, `GET /api/transaction/:id` | transaction create/update/delete/recover; account delete (cascades) |
+| `tags` | `GET /api/tags`, `GET /api/tags/:id` | tag create/update/delete |
+
+### Read path
+
+```typescript
+const cacheKey = await getCacheKey(namespace, userId, querySuffix);
+const cached = await getCached(cacheKey);
+if (cached) return res.status(200).json({ message: "...", data: cached });
+
+const data = await db.query...;          // fetch from PostgreSQL
+await setCached(cacheKey, data);          // populate cache with TTL
+return res.status(200).json({ message: "...", data });
+```
+
+### Write path
+
+```typescript
+const result = await db.transaction(async (tx) => {
+  // ...balance-safe mutation logic with row locking...
+});
+
+// Only after the DB transaction commits successfully:
+await invalidateCache("accounts", userId);
+await invalidateCache("transactions", userId);
+```
+
+Invalidation is deliberately placed **after** the database transaction resolves, never inside it. If it ran before commit and the transaction later rolled back (e.g. a `CHECK` constraint failure), the cache would have been invalidated for a change that never actually happened — wasted work, though not a correctness bug, since the next read would just rebuild an identical cache entry from the still-accurate database state.
+
+### TTL and memory hygiene
+
+All cached entries carry a TTL (`CACHE_TTL_SECONDS`, default 3600s). Orphaned keys from a superseded version are never explicitly deleted — they're simply unreachable once the version bumps — and expire on their own via TTL rather than accumulating indefinitely in Redis.
+
+### Scope of invalidation
+
+Invalidation is intentionally **namespace-wide per user**, not per individual resource (e.g. updating one tag invalidates all cached tag reads for that user, not just the one tag). Given the size of a typical user's tag/account list, this trade-off favors simplicity and correctness over shaving cache hits on a rarely-changing dataset.
+
+### Redis as a non-authoritative layer
+
+Redis holds no data that doesn't also exist in PostgreSQL. If Redis is flushed, restarted, or a key is evicted early, the next request simply falls through to the database and repopulates the cache — no data loss, no inconsistency, only a temporary increase in DB load.
 
 ---
 
@@ -545,13 +633,13 @@ The global `errorHandler` middleware handles all thrown errors and maps them con
 
 ## Testing
 
-LedgerFlow uses **Vitest** with **Supertest** for integration testing. Every route is covered.
+LedgerFlow uses **Vitest** with **Supertest** for integration testing. Every route is covered, including cache-hit and cache-invalidation behavior for accounts, transactions, and tags.
 
 ```bash
 npm run test
 ```
 
-Tests run with `APP_STAGE=testing` (loads `.env.test`). Vitest is configured with `maxWorkers: 1` and `isolate: false` — all tests run sequentially in a single worker to prevent concurrent writes to the test database from interfering with each other.
+Tests run with `APP_STAGE=testing` (loads `.env.test`). Vitest is configured with `maxWorkers: 1` and `isolate: false` — all tests run sequentially in a single worker to prevent concurrent writes to the test database from interfering with each other. `.env.test` points `REDIS_URI` at a dedicated database index, and the global setup flushes it before the run so cache state never leaks between test runs.
 
 ```ts
 // vitest.config.ts
@@ -572,6 +660,7 @@ ledgerflow-api/
 ├── src/
 │   ├── db/
 │   │   ├── connection.ts           # Drizzle + pg pool setup
+│   │   ├── redis.ts                # Redis client + initializeRedisClient()
 │   │   └── schema.ts               # All table definitions, enums, relations, inferred types
 │   ├── middlewares/
 │   │   ├── authenticate.ts         # Session auth check
@@ -585,19 +674,27 @@ ledgerflow-api/
 │   ├── modules/
 │   │   ├── auth/                   # register, login, logout
 │   │   ├── users/                  # getUser, updateUser, changePassword
-│   │   ├── accounts/               # CRUD + createTransaction + listTransactions
-│   │   ├── transactions/           # getTransaction, updateTransaction, softDelete, recover
-│   │   └── tags/                   # CRUD for user-owned tags
+│   │   ├── accounts/               # CRUD + createTransaction + listTransactions (cached)
+│   │   ├── transactions/           # getTransaction, updateTransaction, softDelete, recover (cached)
+│   │   └── tags/                   # CRUD for user-owned tags (cached)
 │   ├── types/
 │   │   ├── express-session.d.ts    # Adds userId to SessionData
 │   │   └── custom-env.d.ts
 │   ├── utils/
-│   │   └── password.ts             # bcrypt hashPassword / comparePassword
+│   │   ├── password.ts             # bcrypt hashPassword / comparePassword
+│   │   └── cache.ts                # getCacheKey / getCached / setCached / invalidateCache
 │   ├── server.ts                   # Express app, session, CORS, route mounting
-│   └── index.ts                    # Server listen
+│   └── index.ts                    # Server listen (connects Redis + Postgres before accepting requests)
 ├── tests/
-│   └── setup/
-│       └── globalSetup.ts          # DB setup/teardown for test runs
+│   ├── setup/
+│   │   └── globalSetup.ts          # DB + Redis setup/teardown for test runs
+|   │   └── dbHelpers.ts
+|   │   └── setup.test.tss
+│   ├── accounts.test.ts
+│   ├── auth.test.ts
+│   ├── tags.test.ts
+│   ├── transactions.test.ts
+│   └── users.test.ts
 ├── drizzle/                        # Auto-generated migration files
 ├── drizzle.config.ts
 ├── env.ts                          # Zod-validated env loader
