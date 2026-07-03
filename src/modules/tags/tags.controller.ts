@@ -3,9 +3,7 @@ import { ilike, and, eq } from "drizzle-orm";
 
 import db from "../../db/connection.ts";
 import { tags } from "../../db/schema.ts";
-import { invalidateCache, redisClient } from "../../utils/redis.ts";
-
-import { getVersion } from "../../utils/redis.ts";
+import { invalidateCache, redisClient, getVersion } from "../../utils/redis.ts";
 
 export const getTags = async (
   req: Request,
@@ -88,8 +86,6 @@ export const createTag = async (
       .insert(tags)
       .values({ name, userId: req.session.userId as string })
       .returning();
-
-    const versionKey = `tags:version:${req.session.userId}`;
 
     await invalidateCache(req.session.userId || "", "tags");
 

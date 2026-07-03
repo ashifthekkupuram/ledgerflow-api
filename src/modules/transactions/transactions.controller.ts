@@ -7,6 +7,7 @@ import {
   accountTransactions,
   transactionTags,
 } from "../../db/schema.ts";
+import { invalidateCache } from "../../utils/redis.ts";
 
 export const getTransaction = async (
   req: Request,
@@ -169,6 +170,12 @@ export const updateTransaction = async (
       tagLinks: undefined,
     };
 
+    await invalidateCache(req.session.userId || "", "accounts");
+    await invalidateCache(
+      req.session.userId || "",
+      `transactions-${newTransaction?.accountId}`,
+    );
+
     return res.json({
       message: "Transaction Updated.",
       transaction: filtered,
@@ -231,6 +238,12 @@ export const deleteTransaction = async (
         .set({ deletedAt: new Date() })
         .where(eq(accountTransactions.id, transaction.id));
     });
+
+    await invalidateCache(req.session.userId || "", "accounts");
+    await invalidateCache(
+      req.session.userId || "",
+      `transactions-${accountTransactions?.accountId}`,
+    );
 
     return res.json({
       message: "Transaction Deleted.",
@@ -314,6 +327,12 @@ export const recoverTransaction = async (
       tags: recoveredTransaction?.tagLinks.map((tl) => tl.tag),
       tagLinks: undefined,
     };
+
+    await invalidateCache(req.session.userId || "", "accounts");
+    await invalidateCache(
+      req.session.userId || "",
+      `transactions-${transaction?.accountId}`,
+    );
 
     return res.json({
       message: "Transaction Recovered.",

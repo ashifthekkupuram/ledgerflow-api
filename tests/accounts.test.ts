@@ -3,6 +3,7 @@ import request from "supertest";
 
 import app from "../src/server.ts";
 import { cleanupDB } from "./setup/dbHelpers.ts";
+import { initializeRedisClient } from "../src/utils/redis.ts";
 
 const agent = request.agent(app);
 
@@ -16,6 +17,8 @@ describe("accounts end points tests", () => {
         password: "test1234",
       })
       .expect(201);
+
+    await initializeRedisClient();
   });
 
   afterAll(async () => {

@@ -10,6 +10,7 @@ import {
   type AccountType,
   type AccountTransactionType,
 } from "../../db/schema.ts";
+import { getVersion, invalidateCache, redisClient } from "../../utils/redis.ts";
 
 export const getAccounts = async (
   req: Request,
@@ -35,6 +36,24 @@ export const getAccounts = async (
 
     const totalAccounts = results[0]?.totalAccounts ?? 0;
 
+    const hasMore = pageNumber * env.ACCOUNTS_PAGE_LIMIT < totalAccounts;
+
+    const version = await getVersion(req.session.userId || "", "accounts");
+
+    const cacheKey = `accounts:v${version}:${req.session.userId || ""}:${page}:${name}:${type}`;
+
+    let cacheData = await redisClient.get(cacheKey);
+
+    if (cacheData) {
+      return res.json({
+        message: "Account Retrieved.",
+        accounts: {
+          data: cacheData,
+          nextPage: hasMore ? pageNumber + 1 : undefined,
+        },
+      });
+    }
+
     const datas = await db
       .select()
       .from(accounts)
@@ -43,7 +62,9 @@ export const getAccounts = async (
       .limit(env.ACCOUNTS_PAGE_LIMIT)
       .offset(offset);
 
-    const hasMore = pageNumber * env.ACCOUNTS_PAGE_LIMIT < totalAccounts;
+    await redisClient.set(cacheKey, JSON.stringify(datas), {
+      expiration: { type: "EX", value: 300 },
+    });
 
     return res.json({
       message: "Account Retrieved.",
@@ -103,6 +124,8 @@ export const createAccount = async (
       })
       .returning();
 
+    await invalidateCache(req.session.userId || "", "accounts");
+
     return res.status(201).json({
       message: "Account created.",
       account,
@@ -137,6 +160,8 @@ export const updateAccount = async (
       });
     }
 
+    await invalidateCache(req.session.userId || "", "accounts");
+
     return res.json({
       message: "Account updated.",
       account,
@@ -164,6 +189,8 @@ export const deleteAccount = async (
         error: "Account not found.",
       });
     }
+
+    await invalidateCache(req.session.userId || "", "accounts");
 
     return res.json({
       message: "Account deleted.",
@@ -255,6 +282,9 @@ export const createTransactionByAccountId = async (
       tagLinks: undefined,
     };
 
+    await invalidateCache(req.session.userId || "", "accounts");
+    await invalidateCache(req.session.userId || "", `transactions-${id}`);
+
     return res.status(201).json({
       message: "Transaction created.",
       transaction: filtered,
@@ -306,6 +336,27 @@ export const getTransactionsByAccountId = async (
 
     const totalTransactions = result[0]?.totalTransactions ?? 0;
 
+    const hasMore = pageNumber * env.TRANSACTION_PAGE_LIMIT < totalTransactions;
+
+    const version = await getVersion(
+      req.session.userId || "",
+      `transactions-${id}`,
+    );
+
+    const cacheKey = `transactions-${id}:v${version}:${req.session.userId || ""}:${page}:${type}:${description}:${afterDate}:${befourDate}`;
+
+    let cacheData = await redisClient.get(cacheKey);
+
+    if (cacheData) {
+      return res.json({
+        message: "Transactions retieved.",
+        transactions: {
+          data: cacheData,
+          nextPage: hasMore ? pageNumber + 1 : undefined,
+        },
+      });
+    }
+
     const transactions = await db.query.accountTransactions.findMany({
       where: filters,
       orderBy: accountTransactions.transactionDate,
@@ -326,7 +377,9 @@ export const getTransactionsByAccountId = async (
       tagLinks: undefined,
     }));
 
-    const hasMore = pageNumber * env.TRANSACTION_PAGE_LIMIT < totalTransactions;
+    await redisClient.set(cacheKey, JSON.stringify(filteredTransacions), {
+      expiration: { type: "EX", value: 300 },
+    });
 
     return res.json({
       message: "Transactions retieved.",
